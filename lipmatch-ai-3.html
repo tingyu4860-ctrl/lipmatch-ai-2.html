@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LipMatch AI｜AI 唇彩色號辨識與推薦</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Noto+Sans+TC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --rose: #C9748A;
+  --blush: #E8B4C0;
+  --nude: #D4A5A5;
+  --cream: #F7EFE9;
+  --latte: #C4A882;
+  --deep-rose: #8B4560;
+  --text-dark: #2D1F24;
+  --text-mid: #6B4E56;
+  --text-light: #A08090;
+  --white: #FFFAF8;
+  --card-bg: rgba(255,255,255,0.85);
+  --shadow: 0 8px 40px rgba(139,69,96,0.10);
+  --shadow-hover: 0 16px 56px rgba(139,69,96,0.18);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans TC', sans-serif;
+  background: var(--cream);
+  color: var(--text-dark);
+  overflow-x: hidden;
+}
+
+/* ── NOISE TEXTURE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 48px;
+  background: rgba(247,239,233,0.88);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(201,116,138,0.12);
+}
+.nav-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem; font-weight: 600;
+  color: var(--deep-rose);
+  letter-spacing: 0.02em;
+}
+.nav-logo span { color: var(--rose); font-style: italic; }
+.nav-tagline {
+  font-size: 0.75rem; color: var(--text-light);
+  letter-spacing: 0.08em;
+}
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 120px 24px 80px;
+  position: relative;
+  background: linear-gradient(160deg, #F7EFE9 0%, #F2E0E6 50%, #EDD5D5 100%);
+  text-align: center;
+}
+.hero-deco {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.hero-deco-1 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(201,116,138,0.18) 0%, transparent 70%);
+  top: -80px; right: -100px;
+}
+.hero-deco-2 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(212,165,165,0.22) 0%, transparent 70%);
+  bottom: -60px; left: -80px;
+}
+.hero-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--rose), var(--deep-rose));
+  color: white;
+  font-size: 0.72rem; letter-spacing: 0.14em;
+  padding: 6px 18px; border-radius: 20px;
+  margin-bottom: 28px;
+  text-transform: uppercase;
+}
+.hero h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  font-weight: 600; line-height: 1.25;
+  color: var(--text-dark);
+  margin-bottom: 20px;
+  max-width: 680px;
+}
+.hero h1 em {
+  font-style: italic; color: var(--rose);
+}
+.hero p {
+  font-size: 1.05rem; color: var(--text-mid);
+  max-width: 520px; line-height: 1.75;
+  margin-bottom: 48px;
+}
+
+/* ── UPLOAD ZONE ── */
+.upload-zone {
+  width: 100%; max-width: 520px;
+  border: 2px dashed rgba(201,116,138,0.4);
+  border-radius: 24px;
+  padding: 48px 32px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255,255,255,0.6);
+  backdrop-filter: blur(8px);
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--rose);
+  background: rgba(255,255,255,0.82);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+.upload-icon {
+  width: 56px; height: 56px;
+  background: linear-gradient(135deg, var(--blush), var(--nude));
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 18px;
+  font-size: 1.6rem;
+}
+.upload-zone h3 {
+  font-size: 1rem; color: var(--text-dark);
+  margin-bottom: 8px;
+}
+.upload-zone p {
+  font-size: 0.82rem; color: var(--text-light);
+  margin-bottom: 24px;
+}
+.upload-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2;
+  width: 100%; height: 100%;
+}
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 32px; border-radius: 50px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.95rem; font-weight: 500;
+  cursor: pointer; border: none;
+  transition: all 0.3s ease;
+  letter-spacing: 0.04em;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--rose) 0%, var(--deep-rose) 100%);
+  color: white;
+  box-shadow: 0 8px 24px rgba(139,69,96,0.28);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(139,69,96,0.36);
+}
+.btn-primary:disabled {
+  opacity: 0.5; cursor: not-allowed; transform: none;
+}
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--rose);
+  color: var(--rose);
+}
+.btn-outline:hover {
+  background: var(--rose); color: white;
+}
+
+/* ── SECTION BASE ── */
+section {
+  padding: 80px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.section-label {
+  font-size: 0.72rem; letter-spacing: 0.18em;
+  color: var(--rose); text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  color: var(--text-dark);
+  margin-bottom: 16px;
+}
+.section-subtitle {
+  font-size: 1rem; color: var(--text-mid);
+  line-height: 1.75; max-width: 560px;
+}
+
+/* ── ANALYSIS SECTION ── */
+#analysis-section {
+  display: none;
+  background: linear-gradient(160deg, #FDF5F5 0%, #F7EFE9 100%);
+  border-radius: 0;
+  padding: 80px 24px;
+}
+#analysis-section.visible { display: block; }
+
+.analysis-wrapper {
+  max-width: 1100px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1.5fr;
+  gap: 48px; align-items: start;
+}
+@media(max-width:768px){
+  .analysis-wrapper { grid-template-columns: 1fr; }
+}
+
+.preview-card {
+  background: var(--card-bg);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.preview-card img {
+  width: 100%; height: 280px;
+  object-fit: cover; display: block;
+}
+.preview-card-body { padding: 20px 24px; }
+.preview-card-body h4 {
+  font-size: 0.85rem; color: var(--text-light);
+  letter-spacing: 0.06em;
+}
+
+/* Analyzing animation */
+.analyzing-overlay {
+  display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 40px;
+  text-align: center;
+}
+.analyzing-overlay.active { display: flex; }
+.pulse-ring {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 3px solid var(--rose);
+  animation: pulse-ring 1.4s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.pulse-dot {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--rose), var(--deep-rose));
+  border-radius: 50%;
+  position: absolute;
+  animation: pulse-dot 1.4s ease-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(0.92); }
+}
+.pulse-wrap { position: relative; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; }
+
+/* Result tags */
+.result-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.result-item {
+  background: white;
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 16px rgba(139,69,96,0.08);
+  flex: 1; min-width: 140px;
+}
+.result-item-label {
+  font-size: 0.72rem; color: var(--text-light);
+  letter-spacing: 0.08em; margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.result-item-value {
+  font-size: 1rem; font-weight: 600;
+  color: var(--deep-rose);
+}
+.result-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.tag {
+  display: inline-block;
+  padding: 5px 14px; border-radius: 20px;
+  font-size: 0.78rem; font-weight: 500;
+}
+.tag-rose { background: rgba(201,116,138,0.12); color: var(--deep-rose); }
+.tag-nude { background: rgba(196,168,130,0.14); color: #7A5A30; }
+.tag-cool { background: rgba(140,160,200,0.12); color: #4A5A80; }
+.color-swatch {
+  width: 48px; height: 48px; border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  margin-bottom: 12px;
+}
+
+/* ── FILTERS ── */
+.filter-bar {
+  background: white;
+  border-radius: 20px;
+  padding: 24px 28px;
+  box-shadow: var(--shadow);
+  margin-bottom: 40px;
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+}
+.filter-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 130px; }
+.filter-group label {
+  font-size: 0.72rem; color: var(--text-light);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.filter-group select {
+  border: 1.5px solid rgba(201,116,138,0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.88rem;
+  color: var(--text-dark);
+  background: var(--cream);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23C9748A'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+.filter-group select:focus { border-color: var(--rose); }
+.filter-reset { padding: 10px 20px; white-space: nowrap; align-self: flex-end; }
+
+/* ── PRODUCT CARDS ── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+.product-card {
+  background: var(--card-bg);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: all 0.35s ease;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+}
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(201,116,138,0.2);
+}
+.product-card.expanded {
+  border-color: rgba(201,116,138,0.35);
+}
+.card-color-bar { height: 6px; }
+.card-body { padding: 20px 22px; }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.card-brand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.card-flag { font-size: 1.1rem; }
+.card-brand { font-size: 0.82rem; color: var(--text-light); font-weight: 500; }
+.card-name { font-size: 1.05rem; font-weight: 600; color: var(--text-dark); line-height: 1.35; }
+.card-swatch {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.14);
+  flex-shrink: 0;
+}
+.card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.card-tag {
+  font-size: 0.72rem; padding: 3px 10px;
+  border-radius: 12px; font-weight: 500;
+}
+.card-tag-type { background: #FDE8EE; color: #B05070; }
+.card-tag-feel { background: #FDF0E0; color: #8A6030; }
+.card-tag-price { background: #E8F0FD; color: #3050B0; }
+.card-reason {
+  font-size: 0.82rem; color: var(--text-mid);
+  line-height: 1.65;
+  margin-top: 10px;
+}
+.card-expand-btn {
+  width: 100%; text-align: center;
+  padding: 10px;
+  font-size: 0.8rem; color: var(--rose);
+  background: none; border: none;
+  border-top: 1px solid rgba(201,116,138,0.1);
+  cursor: pointer; letter-spacing: 0.06em;
+  transition: background 0.2s;
+}
+.card-expand-btn:hover { background: rgba(201,116,138,0.06); }
+.card-expanded-body {
+  display: none;
+  padding: 16px 22px;
+  background: rgba(247,239,233,0.6);
+  border-top: 1px dashed rgba(201,116,138,0.2);
+}
+.card-expanded-body.show { display: block; }
+.card-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.card-detail { }
+.card-detail-label { font-size: 0.68rem; color: var(--text-light); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 2px; }
+.card-detail-value { font-size: 0.85rem; color: var(--text-dark); font-weight: 500; }
+.match-score {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid rgba(201,116,138,0.15);
+}
+.match-bar { flex: 1; height: 6px; background: rgba(201,116,138,0.15); border-radius: 3px; overflow: hidden; }
+.match-fill { height: 100%; background: linear-gradient(90deg, var(--blush), var(--rose)); border-radius: 3px; transition: width 0.6s ease; }
+.match-pct { font-size: 0.8rem; font-weight: 600; color: var(--rose); }
+
+.no-results {
+  grid-column: 1/-1;
+  text-align: center; padding: 60px 24px;
+  color: var(--text-light);
+}
+.no-results-icon { font-size: 3rem; margin-bottom: 16px; }
+
+/* ── DISCLAIMER ── */
+.disclaimer-section {
+  background: white;
+  border-radius: 24px;
+  padding: 40px 48px;
+  max-width: 900px; margin: 0 auto 80px;
+  box-shadow: var(--shadow);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+}
+@media(max-width:600px){ .disclaimer-section { grid-template-columns: 1fr; padding: 32px 24px; }}
+.disclaimer-col h4 { font-size: 1rem; color: var(--deep-rose); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.disclaimer-col p { font-size: 0.88rem; color: var(--text-mid); line-height: 1.8; }
+
+
+
+/* ── FOOTER ── */
+footer {
+  text-align: center; padding: 40px 24px;
+  background: var(--text-dark);
+  color: rgba(255,255,255,0.4);
+  font-size: 0.78rem; letter-spacing: 0.08em;
+}
+footer span { color: var(--blush); }
+
+/* ── SCROLL REVEAL ── */
+.reveal { opacity: 0; transform: translateY(28px); transition: all 0.7s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  position: fixed; top: 0; right: -320px; bottom: 0;
+  width: 320px; z-index: 200;
+  background: rgba(255,250,248,0.97);
+  backdrop-filter: blur(20px);
+  box-shadow: -8px 0 48px rgba(139,69,96,0.14);
+  border-left: 1px solid rgba(201,116,138,0.12);
+  transition: right 0.38s cubic-bezier(0.4,0,0.2,1);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.sidebar.open { right: 0; }
+.sidebar-overlay {
+  position: fixed; inset: 0; z-index: 190;
+  background: rgba(45,31,36,0.32);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.38s ease;
+}
+.sidebar-overlay.show { opacity: 1; pointer-events: all; }
+
+.sidebar-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid rgba(201,116,138,0.1);
+  flex-shrink: 0;
+}
+.sidebar-header-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.15rem; color: var(--deep-rose);
+}
+.sidebar-close {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: none; cursor: pointer;
+  color: var(--text-light); font-size: 1.3rem;
+  border-radius: 8px; transition: background 0.2s;
+}
+.sidebar-close:hover { background: rgba(201,116,138,0.1); color: var(--rose); }
+
+/* Member badge */
+.member-badge {
+  margin: 16px 24px;
+  background: linear-gradient(135deg, var(--rose), var(--deep-rose));
+  border-radius: 16px; padding: 16px 18px;
+  color: white;
+  flex-shrink: 0;
+}
+.member-badge-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.member-crown { font-size: 1.3rem; }
+.member-name { font-size: 0.95rem; font-weight: 600; }
+.member-plan {
+  display: inline-block;
+  background: rgba(255,255,255,0.22);
+  font-size: 0.68rem; letter-spacing: 0.1em;
+  padding: 2px 10px; border-radius: 10px;
+  margin-bottom: 10px;
+}
+.member-quota {
+  font-size: 0.78rem; opacity: 0.85;
+  line-height: 1.6;
+}
+.member-quota span { font-weight: 600; opacity: 1; }
+
+/* Sidebar nav sections */
+.sidebar-section { padding: 16px 24px 8px; flex-shrink: 0; }
+.sidebar-section-label {
+  font-size: 0.65rem; letter-spacing: 0.14em;
+  color: var(--text-light); text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.sidebar-nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: 12px;
+  cursor: pointer; transition: all 0.2s;
+  margin-bottom: 2px;
+  border: none; background: none; width: 100%; text-align: left;
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.sidebar-nav-item:hover { background: rgba(201,116,138,0.08); }
+.sidebar-nav-item.active { background: rgba(201,116,138,0.12); }
+.sidebar-nav-icon { font-size: 1.1rem; width: 24px; text-align: center; flex-shrink: 0; }
+.sidebar-nav-text { font-size: 0.88rem; color: var(--text-dark); flex: 1; }
+.sidebar-nav-badge {
+  font-size: 0.65rem; padding: 2px 8px;
+  border-radius: 8px; font-weight: 600;
+  background: linear-gradient(135deg, var(--rose), var(--deep-rose));
+  color: white;
+}
+.sidebar-nav-badge.free {
+  background: rgba(160,128,144,0.15);
+  color: var(--text-light);
+}
+.sidebar-nav-badge.lock {
+  background: rgba(201,116,138,0.1);
+  color: var(--rose);
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: rgba(201,116,138,0.1);
+  margin: 8px 24px;
+}
+
+/* Upgrade CTA */
+.sidebar-upgrade {
+  margin: 12px 24px 24px;
+  background: linear-gradient(135deg, #FDE8EE, #F7EFE9);
+  border: 1.5px solid rgba(201,116,138,0.2);
+  border-radius: 16px; padding: 18px;
+  flex-shrink: 0;
+}
+.sidebar-upgrade h4 {
+  font-size: 0.9rem; color: var(--deep-rose);
+  margin-bottom: 6px;
+}
+.sidebar-upgrade p { font-size: 0.78rem; color: var(--text-mid); line-height: 1.6; margin-bottom: 14px; }
+.sidebar-upgrade .price { font-size: 1.1rem; font-weight: 700; color: var(--rose); }
+.sidebar-upgrade .price span { font-size: 0.75rem; font-weight: 400; color: var(--text-light); }
+
+/* Sidebar trigger btn in nav */
+.nav-sidebar-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 50px;
+  background: linear-gradient(135deg, var(--rose), var(--deep-rose));
+  color: white; border: none; cursor: pointer;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.82rem; font-weight: 500;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(139,69,96,0.22);
+}
+.nav-sidebar-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+
+/* ── MODAL PANELS ── */
+.modal-panel {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-panel.show { display: flex; }
+.modal-bg {
+  position: absolute; inset: 0;
+  background: rgba(45,31,36,0.45);
+  backdrop-filter: blur(6px);
+}
+.modal-box {
+  position: relative; z-index: 1;
+  background: var(--white); border-radius: 28px;
+  padding: 36px 32px;
+  max-width: 480px; width: 100%;
+  box-shadow: 0 24px 80px rgba(139,69,96,0.2);
+  max-height: 85vh; overflow-y: auto;
+}
+.modal-box h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem; color: var(--deep-rose);
+  margin-bottom: 6px;
+}
+.modal-subtitle { font-size: 0.85rem; color: var(--text-light); margin-bottom: 24px; }
+.modal-close-btn {
+  position: absolute; top: 20px; right: 20px;
+  width: 32px; height: 32px;
+  border: none; background: rgba(201,116,138,0.1);
+  border-radius: 8px; cursor: pointer; font-size: 1.1rem;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-mid); transition: background 0.2s;
+}
+.modal-close-btn:hover { background: rgba(201,116,138,0.2); }
+
+/* Favorites grid */
+.favorites-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fav-card {
+  border: 1.5px solid rgba(201,116,138,0.15);
+  border-radius: 14px; padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fav-swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.fav-brand { font-size: 0.72rem; color: var(--text-light); }
+.fav-name { font-size: 0.82rem; font-weight: 600; color: var(--text-dark); line-height: 1.3; }
+.fav-remove { font-size: 0.7rem; color: var(--rose); background: none; border: none; cursor: pointer; text-align: left; padding: 0; }
+
+/* History list */
+.history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 14px; border-radius: 14px;
+  background: rgba(247,239,233,0.7);
+}
+.history-color { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
+.history-info { flex: 1; }
+.history-label { font-size: 0.72rem; color: var(--text-light); }
+.history-value { font-size: 0.88rem; font-weight: 500; color: var(--text-dark); }
+.history-time { font-size: 0.7rem; color: var(--text-light); }
+
+/* AI Profile */
+.ai-profile-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.ai-rec-card {
+  background: linear-gradient(135deg, rgba(201,116,138,0.08), rgba(212,165,165,0.1));
+  border: 1px solid rgba(201,116,138,0.15);
+  border-radius: 14px; padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.ai-rec-card p { font-size: 0.85rem; color: var(--text-mid); line-height: 1.65; }
+.ai-rec-card .ai-tag {
+  display: inline-block; background: var(--rose);
+  color: white; font-size: 0.7rem; padding: 2px 10px; border-radius: 10px; margin-bottom: 8px;
+}
+
+/* Benefit cards */
+.benefit-list { display: flex; flex-direction: column; gap: 10px; }
+.benefit-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 12px;
+  background: rgba(247,239,233,0.6);
+}
+.benefit-icon { font-size: 1.3rem; }
+.benefit-text { font-size: 0.85rem; color: var(--text-dark); line-height: 1.5; }
+
+/* Plan cards */
+.plan-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.plan-card {
+  border: 1.5px solid rgba(201,116,138,0.2);
+  border-radius: 16px; padding: 18px 16px;
+  position: relative;
+}
+.plan-card.premium-plan {
+  border-color: var(--rose);
+  background: linear-gradient(160deg, rgba(201,116,138,0.06), rgba(139,69,96,0.04));
+}
+.plan-card .plan-label { font-size: 0.7rem; letter-spacing: 0.12em; color: var(--text-light); text-transform: uppercase; margin-bottom: 8px; }
+.plan-card .plan-price { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: var(--deep-rose); margin-bottom: 4px; }
+.plan-card .plan-price-sub { font-size: 0.72rem; color: var(--text-light); margin-bottom: 12px; }
+.plan-card .plan-features { font-size: 0.78rem; color: var(--text-mid); line-height: 1.9; }
+.plan-card .plan-recommended {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--rose), var(--deep-rose));
+  color: white; font-size: 0.65rem; padding: 3px 12px; border-radius: 10px; white-space: nowrap;
+}
+
+@keyframes pulse-btn {
+  0%   { transform: scale(1); box-shadow: 0 8px 24px rgba(139,69,96,0.28); }
+  50%  { transform: scale(1.06); box-shadow: 0 14px 36px rgba(139,69,96,0.45); }
+  100% { transform: scale(1); box-shadow: 0 8px 24px rgba(139,69,96,0.28); }
+}
+
+/* upload success ring */
+.upload-zone.uploaded {
+  border-color: var(--rose);
+  background: rgba(255,255,255,0.88);
+}
+.upload-zone.uploaded .upload-icon::after {
+  content: '✓';
+  position: absolute;
+  font-size: 0.7rem;
+  background: var(--rose);
+  color: white;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  bottom: -2px; right: -2px;
+}
+.upload-zone .upload-icon { position: relative; }
+
+@keyframes fadeInUp {
+  from { opacity:0; transform:translateX(-50%) translateY(16px); }
+  to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+
+@media(max-width:480px){
+  .sidebar { width: 100%; right: -100%; }
+  .plan-cards { grid-template-columns: 1fr; }
+  .favorites-grid { grid-template-columns: 1fr; }
+}
+
+/* ── HERO CTA group ── */
+.hero-cta { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.scroll-hint {
+  margin-top: 48px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: var(--text-light); font-size: 0.78rem; letter-spacing: 0.1em;
+}
+.scroll-arrow {
+  width: 20px; height: 20px;
+  border-right: 2px solid var(--nude);
+  border-bottom: 2px solid var(--nude);
+  transform: rotate(45deg);
+  animation: bounce 1.6s infinite;
+}
+@keyframes bounce { 0%,100%{transform:rotate(45deg) translateY(0)} 50%{transform:rotate(45deg) translateY(5px)} }
+
+/* ── MISC ── */
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mt-32 { margin-top: 32px; }
+.mt-48 { margin-top: 48px; }
+.centered { text-align: center; }
+.results-count {
+  font-size: 0.85rem; color: var(--text-light);
+  margin-bottom: 24px;
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Lip<span>Match</span> AI</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="nav-tagline">AI 唇彩色號辨識推薦</div>
+    <button class="nav-sidebar-btn" onclick="openSidebar()">
+      👑 Premium 會員
+    </button>
+  </div>
+</nav>
+
+<!-- SIDEBAR OVERLAY -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-header-title">我的帳戶</div>
+    <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+  </div>
+
+  <!-- Member Badge -->
+  <div class="member-badge">
+    <div class="member-badge-top">
+      <span class="member-crown">👑</span>
+      <span class="member-name">美妝達人 Chen</span>
+    </div>
+    <div class="member-plan">PREMIUM 付費會員</div>
+    <div class="member-quota">
+      今日 AI 分析：<span>無限次</span> ｜ 色號收藏：<span>無限制</span>
+    </div>
+  </div>
+
+  <!-- Premium Features -->
+  <div class="sidebar-section" id="sidebar-premium-section">
+    <div class="sidebar-section-label">✦ Premium 專屬功能</div>
+    <button class="sidebar-nav-item active" onclick="openModal('modal-profile')">
+      <span class="sidebar-nav-icon">🤖</span>
+      <span class="sidebar-nav-text">我的 AI 個人化推薦</span>
+      <span class="sidebar-nav-badge">NEW</span>
+    </button>
+    <button class="sidebar-nav-item" onclick="openModal('modal-favorites')">
+      <span class="sidebar-nav-icon">❤️</span>
+      <span class="sidebar-nav-text">收藏色號</span>
+      <span class="sidebar-nav-badge" data-fav>12</span>
+    </button>
+    <button class="sidebar-nav-item" onclick="openModal('modal-history')">
+      <span class="sidebar-nav-icon">🕐</span>
+      <span class="sidebar-nav-text">點擊與分析紀錄</span>
+    </button>
+    <button class="sidebar-nav-item" onclick="openModal('modal-benefits')">
+      <span class="sidebar-nav-icon">🎁</span>
+      <span class="sidebar-nav-text">專屬優惠與品牌福利</span>
+      <span class="sidebar-nav-badge">3</span>
+    </button>
+  </div>
+
+  <div class="sidebar-divider" id="sidebar-premium-divider"></div>
+
+  <!-- Basic Features -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">基本功能</div>
+    <button class="sidebar-nav-item" onclick="openModal('modal-ranking')">
+      <span class="sidebar-nav-icon">🏆</span>
+      <span class="sidebar-nav-text">熱門色號排行榜</span>
+    </button>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <!-- Plan info -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">訂閱方案</div>
+    <button class="sidebar-nav-item" onclick="openModal('modal-plans')">
+      <span class="sidebar-nav-icon">💳</span>
+      <span class="sidebar-nav-text">查看方案與定價</span>
+    </button>
+  </div>
+
+  <div style="flex:1;"></div>
+
+  <div class="sidebar-upgrade">
+    <h4>✨ 目前方案：Premium</h4>
+    <p>享有個人化 AI 推薦、無限收藏、品牌獨家優惠與更多進階功能。</p>
+    <div style="display:flex;align-items:baseline;gap:4px;">
+      <div class="price">NT$99<span>／月</span></div>
+      <div style="font-size:0.72rem;color:var(--rose);margin-left:8px;">訂閱中 ✓</div>
+    </div>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-deco hero-deco-1"></div>
+  <div class="hero-deco hero-deco-2"></div>
+  <div class="hero-badge">✦ Powered by AI Color Analysis</div>
+  <h1>上傳一張照片，<br>找到你的<em>命定唇色</em></h1>
+  <p>AI 深度分析唇色特徵，從全球數十款唇彩中<br>為你推薦最相似的口紅、唇釉與唇彩色號</p>
+
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="upload-icon">💄</div>
+    <h3>拖曳或點擊上傳圖片</h3>
+    <p style="pointer-events:none;">支援唇色特寫、試色手臂照、妝容截圖<br>JPG / PNG / WEBP</p>
+    <div class="btn btn-outline" style="pointer-events:none;display:inline-flex;margin:0 auto;">選擇圖片</div>
+  </div>
+
+  <div class="hero-cta mt-24">
+    <button class="btn btn-primary" id="analyzeBtn" disabled>
+      <span>✦</span> 開始分析
+    </button>
+  </div>
+
+  <div class="scroll-hint">
+    <span>向下查看推薦結果</span>
+    <div class="scroll-arrow"></div>
+  </div>
+</section>
+
+<!-- ANALYSIS SECTION -->
+<div id="analysis-section">
+  <section style="padding:0;">
+    <div style="max-width:1100px;margin:0 auto;padding:60px 24px;">
+      <div class="section-label">Step 2 — AI Analysis</div>
+      <div class="section-title">色彩分析結果</div>
+
+      <div class="analysis-wrapper mt-32">
+        <!-- Left: Preview -->
+        <div>
+          <div class="preview-card">
+            <img id="previewImg" src="" alt="上傳圖片預覽">
+            <div class="preview-card-body">
+              <h4>已上傳圖片</h4>
+              <p id="fileName" style="font-size:0.82rem;color:var(--text-mid);margin-top:4px;"></p>
+            </div>
+          </div>
+
+          <!-- Analyzing overlay -->
+          <div id="analyzingOverlay" class="analyzing-overlay mt-24" style="display:none;">
+            <div class="pulse-wrap">
+              <div class="pulse-ring"></div>
+              <div class="pulse-dot"></div>
+            </div>
+            <div>
+              <div style="font-weight:600;color:var(--deep-rose);margin-bottom:4px;">AI 分析中…</div>
+              <div style="font-size:0.82rem;color:var(--text-light);" id="analyzeStatus">正在讀取色彩資訊</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Results -->
+        <div id="resultPanel" style="display:none;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px;">
+            <div class="color-swatch" id="mainSwatch"></div>
+            <div>
+              <div class="section-label">偵測主色</div>
+              <div style="font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--deep-rose);" id="mainColorName">—</div>
+            </div>
+          </div>
+
+          <div class="result-grid" id="resultGrid">
+            <!-- filled by JS -->
+          </div>
+
+          <div style="margin-top:24px;">
+            <div class="section-label mt-8">適合風格標籤</div>
+            <div class="result-tags mt-8" id="styleTags"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- RECOMMENDATIONS SECTION -->
+<div id="recommendations-section" style="display:none;">
+  <section style="padding:0;">
+    <div style="max-width:1100px;margin:0 auto;padding:60px 24px;">
+      <div class="section-label centered">Step 3 — Recommendations</div>
+      <div class="section-title centered">為你推薦的唇彩色號</div>
+      <div class="section-subtitle centered mt-16" style="margin:0 auto;">根據你的唇色特徵，以下是最相似的唇彩產品推薦</div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar mt-48 reveal">
+        <div class="filter-group">
+          <label>國家 / 地區</label>
+          <select id="f-country">
+            <option value="">全部</option>
+            <option>韓國</option>
+            <option>日本</option>
+            <option>美國</option>
+            <option>法國</option>
+            <option>台灣／中國</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>品牌</label>
+          <select id="f-brand">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>產品類型</label>
+          <select id="f-type">
+            <option value="">全部</option>
+            <option>口紅</option>
+            <option>唇釉／唇露</option>
+            <option>唇泥</option>
+            <option>唇蜜</option>
+            <option>唇油</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>妝感</label>
+          <select id="f-finish">
+            <option value="">全部</option>
+            <option>霧面</option>
+            <option>水光</option>
+            <option>絲絨</option>
+            <option>亮面</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>價格帶</label>
+          <select id="f-price">
+            <option value="">全部</option>
+            <option>開架</option>
+            <option>中價</option>
+            <option>專櫃</option>
+          </select>
+        </div>
+        <button class="btn btn-outline filter-reset" id="resetFilter">重設</button>
+      </div>
+
+      <div class="results-count" id="resultsCount"></div>
+      <div class="cards-grid" id="cardsGrid"></div>
+    </div>
+  </section>
+</div>
+
+<!-- DISCLAIMER -->
+<div style="padding:0 24px 0;" id="disclaimer-wrap" style="display:none;">
+  <div class="disclaimer-section reveal">
+    <div class="disclaimer-col">
+      <h4>⚠ AI 推薦說明</h4>
+      <p>本網站的 AI 推薦結果僅供參考，系統根據上傳圖片的色彩特徵進行分析，並非百分之百準確辨識特定品牌色號。實際妝效會受到你原本的唇色深淺、膚色冷暖、拍攝光線、相機濾鏡等因素影響，建議以推薦結果為起點，前往實體櫃位試色確認。</p>
+    </div>
+    <div class="disclaimer-col">
+      <h4>🎨 如何拍出最準確的照片？</h4>
+      <p>建議在自然光下拍攝，避免使用濾鏡或強烈補光。可以上傳唇部特寫、手臂試色照或整體妝容截圖，系統會自動分析圖片中的主要色彩，找到最接近的唇彩推薦。</p>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- AI 個人化推薦 -->
+<div class="modal-panel" id="modal-profile">
+  <div class="modal-bg" onclick="closeModal('modal-profile')"></div>
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="closeModal('modal-profile')">✕</button>
+    <h3>我的 AI 個人化推薦</h3>
+    <div class="modal-subtitle">根據你的收藏、點擊與分析紀錄，AI 為你量身建立的色系輪廓</div>
+    <div class="sidebar-section-label" style="margin-bottom:8px;">你的色系偏好</div>
+    <div class="ai-profile-tags">
+      <span class="tag tag-rose">冷調</span>
+      <span class="tag tag-rose">乾燥玫瑰</span>
+      <span class="tag tag-nude">霧面</span>
+      <span class="tag tag-nude">中飽和</span>
+      <span class="tag tag-rose">韓系</span>
+      <span class="tag tag-nude">日常</span>
+    </div>
+    <div style="margin:4px 0 16px;">
+      <div class="sidebar-section-label" style="margin-bottom:10px;">常用品牌</div>
+      <div style="font-size:0.85rem;color:var(--text-mid);">Rom&nd、3CE、heme</div>
+    </div>
+    <div class="sidebar-section-label" style="margin-bottom:10px;">✨ AI 為你推薦</div>
+    <div class="ai-rec-card">
+      <div class="ai-tag">秋冬新色</div>
+      <p>「根據你偏好乾燥玫瑰與霧面質地，你可能會喜歡今季的 <strong>奶茶豆沙霧色系</strong>，3CE 與 Rom&nd 各有新品上市，非常適合你的冷白肌。」</p>
+    </div>
+    <div class="ai-rec-card">
+      <div class="ai-tag">個人化推薦</div>
+      <p>「根據你的冷白肌膚色與韓系風格偏好，推薦嘗試 <strong>乾燥玫瑰棕調</strong> 色系，搭配絲絨妝感更顯氣質。」</p>
+    </div>
+    <div class="ai-rec-card">
+      <div class="ai-tag">新品快訊</div>
+      <p>「你常看的 Peripera Ink Velvet 系列本季推出 <strong>#25 霧玫瑰新色</strong>，與你的喜好色系高度吻合，限量上市中。」</p>
+    </div>
+  </div>
+</div>
+
+<!-- 收藏色號 -->
+<div class="modal-panel" id="modal-favorites">
+  <div class="modal-bg" onclick="closeModal('modal-favorites')"></div>
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="closeModal('modal-favorites')">✕</button>
+    <h3>我的收藏色號</h3>
+    <div class="modal-subtitle" id="fav-subtitle">尚未收藏任何色號</div>
+    <div class="favorites-grid" id="favorites-grid"></div>
+    <div id="fav-empty" style="display:none;text-align:center;padding:32px 0;color:var(--text-light);font-size:0.88rem;">
+      💄 還沒有收藏的色號<br><span style="font-size:0.78rem;">點擊推薦卡片的愛心即可收藏</span>
+    </div>
+  </div>
+</div>
+
+<!-- 點擊與分析紀錄 -->
+<div class="modal-panel" id="modal-history">
+  <div class="modal-bg" onclick="closeModal('modal-history')"></div>
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="closeModal('modal-history')">✕</button>
+    <h3>點擊與分析紀錄</h3>
+    <div class="modal-subtitle">Premium 會員專屬完整歷史紀錄</div>
+    <div class="sidebar-section-label" style="margin-bottom:10px;">最近分析紀錄</div>
+    <div class="history-list">
+      <div class="history-item">
+        <div class="history-color" style="background:linear-gradient(135deg,#B07880,#C9849A);"></div>
+        <div class="history-info">
+          <div class="history-label">分析結果</div>
+          <div class="history-value">玫瑰豆沙・冷調・霧面</div>
+        </div>
+        <div class="history-time">今天 14:32</div>
+      </div>
+      <div class="history-item">
+        <div class="history-color" style="background:linear-gradient(135deg,#C4A080,#D4A090);"></div>
+        <div class="history-info">
+          <div class="history-label">分析結果</div>
+          <div class="history-value">奶茶裸色・暖調・水光</div>
+        </div>
+        <div class="history-time">昨天 18:05</div>
+      </div>
+      <div class="history-item">
+        <div class="history-color" style="background:linear-gradient(135deg,#A05068,#C05060);"></div>
+        <div class="history-info">
+          <div class="history-label">分析結果</div>
+          <div class="history-value">莓果・冷調・絲絨</div>
+        </div>
+        <div class="history-time">5月10日</div>
+      </div>
+    </div>
+    <div class="sidebar-section-label" style="margin-top:20px;margin-bottom:10px;">近期點擊色號</div>
+    <div class="history-list">
+      <div class="history-item">
+        <div class="history-color" style="background:#B37070;border-radius:50%;"></div>
+        <div class="history-info">
+          <div class="history-label">Rom&nd</div>
+          <div class="history-value">#08 Mellow Brick</div>
+        </div>
+        <div class="history-time">3次</div>
+      </div>
+      <div class="history-item">
+        <div class="history-color" style="background:#C06080;border-radius:50%;"></div>
+        <div class="history-info">
+          <div class="history-label">Dior</div>
+          <div class="history-value">#458 Paris</div>
+        </div>
+        <div class="history-time">2次</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 品牌優惠福利 -->
+<div class="modal-panel" id="modal-benefits">
+  <div class="modal-bg" onclick="closeModal('modal-benefits')"></div>
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="closeModal('modal-benefits')">✕</button>
+    <h3>專屬優惠與品牌福利</h3>
+    <div class="modal-subtitle">Premium 會員限定・本月共 3 項優惠</div>
+    <div class="benefit-list">
+      <div class="benefit-item">
+        <div class="benefit-icon">🏷️</div>
+        <div class="benefit-text">
+          <strong>Rom&nd 官方蝦皮旗艦店</strong><br>
+          輸入折扣碼 <span style="background:rgba(201,116,138,0.12);color:var(--deep-rose);font-weight:600;padding:1px 8px;border-radius:6px;">LIPMATCH10</span> 享 9 折優惠，本月底截止
+        </div>
+      </div>
+      <div class="benefit-item">
+        <div class="benefit-icon">🎀</div>
+        <div class="benefit-text">
+          <strong>heme 會員限定活動</strong><br>
+          5 月購買任一唇彩商品，Premium 會員可參加限量聯名禮盒抽獎，每人限抽一次
+        </div>
+      </div>
+      <div class="benefit-item">
+        <div class="benefit-icon">✉️</div>
+        <div class="benefit-text">
+          <strong>Peripera 新品搶先體驗</strong><br>
+          Premium 會員優先取得 #25 霧玫瑰試用包申請資格，數量有限
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:14px;background:rgba(247,239,233,0.8);border-radius:12px;font-size:0.78rem;color:var(--text-light);line-height:1.7;">
+      ✦ 品牌合作福利每月更新，升級 Premium 即可持續享有所有優惠
+    </div>
+  </div>
+</div>
+
+<!-- 熱門排行榜 -->
+<div class="modal-panel" id="modal-ranking">
+  <div class="modal-bg" onclick="closeModal('modal-ranking')"></div>
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="closeModal('modal-ranking')">✕</button>
+    <h3>🏆 熱門色號排行榜</h3>
+    <div class="modal-subtitle">本週最多人收藏與點擊的唇彩色號</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <!-- #1 -->
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(201,116,138,0.12),rgba(139,69,96,0.06));border:1.5px solid rgba(201,116,138,0.25);">
+        <div style="font-size:1.5rem;width:32px;text-align:center;flex-shrink:0;">🥇</div>
+        <div style="width:42px;height:42px;border-radius:50%;background:#C06080;flex-shrink:0;border:3px solid white;box-shadow:0 4px 12px rgba(192,96,128,0.3);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">Dior 🇫🇷 ｜ 口紅・絲絨</div>
+          <div style="font-size:0.95rem;font-weight:600;color:var(--text-dark);">#458 Paris</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:0.92rem;font-weight:700;color:var(--deep-rose);">2,341</div>
+          <div style="font-size:0.68rem;color:var(--text-light);">人收藏</div>
+        </div>
+      </div>
+
+      <!-- #2 -->
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,0.7);border:1.5px solid rgba(201,116,138,0.12);">
+        <div style="font-size:1.5rem;width:32px;text-align:center;flex-shrink:0;">🥈</div>
+        <div style="width:42px;height:42px;border-radius:50%;background:#B37070;flex-shrink:0;border:3px solid white;box-shadow:0 4px 12px rgba(179,112,112,0.25);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">Rom&nd 🇰🇷 ｜ 唇泥・霧面</div>
+          <div style="font-size:0.95rem;font-weight:600;color:var(--text-dark);">#08 Mellow Brick</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:0.92rem;font-weight:700;color:var(--deep-rose);">1,892</div>
+          <div style="font-size:0.68rem;color:var(--text-light);">人收藏</div>
+        </div>
+      </div>
+
+      <!-- #3 -->
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,0.7);border:1.5px solid rgba(201,116,138,0.12);">
+        <div style="font-size:1.5rem;width:32px;text-align:center;flex-shrink:0;">🥉</div>
+        <div style="width:42px;height:42px;border-radius:50%;background:#BE9180;flex-shrink:0;border:3px solid white;box-shadow:0 4px 12px rgba(190,145,128,0.25);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">MAC 🇺🇸 ｜ 口紅・霧面</div>
+          <div style="font-size:0.95rem;font-weight:600;color:var(--text-dark);">#Velvet Teddy</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:0.92rem;font-weight:700;color:var(--deep-rose);">1,720</div>
+          <div style="font-size:0.68rem;color:var(--text-light);">人收藏</div>
+        </div>
+      </div>
+
+      <!-- #4 -->
+      <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,0.7);border:1.5px solid rgba(201,116,138,0.12);">
+        <div style="font-size:0.9rem;font-weight:700;color:var(--text-light);width:32px;text-align:center;flex-shrink:0;">4</div>
+        <div style="width:42px;height:42px;border-radius:50%;background:#9B6070;flex-shrink:0;border:3px solid white;box-shadow:0 4px 12px rgba(155,96,112,0.2);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">3CE 🇰🇷 ｜ 唇釉・絲絨</div>
+          <div style="font-size:0.92rem;font-weight:600;color:var(--text-dark);">#In The Fig</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:0.88rem;font-weight:700;color:var(--rose);">1,456</div>
+          <div style="font-size:0.68rem;color:var(--text-light);">人收藏</div>
+        </div>
+      </div>
+
+      <!-- #5 -->
+      <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,0.7);border:1.5px solid rgba(201,116,138,0.12);">
+        <div style="font-size:0.9rem;font-weight:700;color:var(--text-light);width:32px;text-align:center;flex-shrink:0;">5</div>
+        <div style="width:42px;height:42px;border-radius:50%;background:#B08090;flex-shrink:0;border:3px solid white;box-shadow:0 4px 12px rgba(176,128,144,0.2);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">heme 🇹🇼 ｜ 口紅・水光</div>
+          <div style="font-size:0.92rem;font-weight:600;color:var(--text-dark);">#15 玫瑰豆沙</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:0.88rem;font-weight:700;color:var(--rose);">1,203</div>
+          <div style="font-size:0.68rem;color:var(--text-light);">人收藏</div>
+        </div>
+      </div>
+
+      <!-- #6 -->
+      <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,0.7);border:1.5px solid rgba(201,116,138,0.12);">
+        <div style="font-size:0.9rem;font-weight:700;color:var(--text-light);width:32px;text-align:center;flex-shrink:0;">6</div>
+        <div style="width:42px;height:42px;border-radius:50%;background:#9A5060;flex-shrink:0;border:3px solid white;box-shadow:0 4px 12px rgba(154,80,96,0.2);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">Chanel 🇫🇷 ｜ 唇釉・霧面</div>
+          <div style="font-size:0.92rem;font-weight:600;color:var(--text-dark);">#154 Expérimenté</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:0.88rem;font-weight:700;color:var(--rose);">987</div>
+          <div style="font-size:0.68rem;color:var(--text-light);">人收藏</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:16px;padding:12px 16px;background:rgba(247,239,233,0.8);border-radius:12px;font-size:0.75rem;color:var(--text-light);text-align:center;letter-spacing:0.04em;">
+      排行榜每週五更新 ｜ 資料來源：LipMatch AI 用戶收藏與點擊統計
+    </div>
+  </div>
+</div>
+
+<!-- 方案與定價 -->
+<div class="modal-panel" id="modal-plans">
+  <div class="modal-bg" onclick="closeModal('modal-plans')"></div>
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="closeModal('modal-plans')">✕</button>
+    <h3>訂閱方案</h3>
+    <div class="modal-subtitle">選擇最適合你的唇彩探索計畫</div>
+
+    <div class="plan-cards">
+      <!-- Basic -->
+      <div class="plan-card" id="plan-basic-card" style="cursor:pointer;" onclick="switchPlan('basic')">
+        <div class="plan-label">Basic</div>
+        <div class="plan-price">免費</div>
+        <div class="plan-price-sub">永久免費</div>
+        <div class="plan-features">
+          ✓ 每日 3 次 AI 分析<br>
+          ✓ 相似色推薦<br>
+          ✓ 熱門排行榜<br>
+          ✓ 收藏 5 款色號<br>
+          ✗ 個人化 AI 推薦<br>
+          ✗ 完整歷史紀錄<br>
+          ✗ 品牌優惠福利
+        </div>
+        <div style="margin-top:14px;">
+          <div id="basic-btn" style="display:none;text-align:center;padding:8px;border-radius:10px;background:var(--rose);color:white;font-size:0.78rem;font-weight:600;">目前方案 ✓</div>
+          <div id="basic-select-btn" style="text-align:center;padding:8px;border-radius:10px;border:1.5px solid rgba(201,116,138,0.3);color:var(--text-light);font-size:0.78rem;">切換為免費方案</div>
+        </div>
+      </div>
+
+      <!-- Premium -->
+      <div class="plan-card premium-plan" id="plan-premium-card" style="cursor:pointer;" onclick="switchPlan('premium')">
+        <div class="plan-recommended" id="premium-recommended">目前方案</div>
+        <div class="plan-label">Premium</div>
+        <div class="plan-price">NT$99</div>
+        <div class="plan-price-sub">每月 / 或 NT$899 年費</div>
+        <div class="plan-features">
+          ✓ <strong>無限次</strong> AI 分析<br>
+          ✓ 相似色推薦<br>
+          ✓ 熱門排行榜<br>
+          ✓ <strong>無限</strong>收藏色號<br>
+          ✓ <strong>個人化 AI 推薦</strong><br>
+          ✓ <strong>完整歷史紀錄</strong><br>
+          ✓ <strong>品牌優惠福利</strong>
+        </div>
+        <div style="margin-top:14px;">
+          <div id="premium-btn" style="text-align:center;padding:8px;border-radius:10px;background:var(--rose);color:white;font-size:0.78rem;font-weight:600;">目前方案 ✓</div>
+          <div id="premium-select-btn" style="display:none;text-align:center;padding:8px;border-radius:10px;background:linear-gradient(135deg,var(--rose),var(--deep-rose));color:white;font-size:0.78rem;font-weight:600;">升級 Premium ✦</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:linear-gradient(135deg,rgba(201,116,138,0.08),rgba(139,69,96,0.05));border:1px solid rgba(201,116,138,0.18);border-radius:14px;padding:16px;font-size:0.82rem;color:var(--text-mid);line-height:1.75;">
+      💡 <strong>年費方案</strong> NT$899／年，相當於每月 NT$75，省下 25%，並增加長期使用穩定性。
+    </div>
+  </div>
+</div>
+  <p>© 2025 <span>LipMatch AI</span></p>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════
+   SIDEBAR & MODAL
+═══════════════════════════════════════════ */
+let currentPlan = 'premium'; // default
+const BASIC_ANALYZE_LIMIT = 3;
+const BASIC_FAV_LIMIT = 5;
+let basicAnalyzeUsed = 0;
+let basicFavUsed = 0;
+
+function showQuotaAlert(type) {
+  const msg = type === 'analyze'
+    ? '今日 AI 分析次數（3 次）已用完！\n升級 Premium 會員即可無限使用。'
+    : '色號收藏次數（5 次）已用完！\n升級 Premium 會員即可無限收藏。';
+  // 用自訂提示而非 alert，顯示在畫面上
+  let toast = document.getElementById('quota-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'quota-toast';
+    toast.style.cssText = `
+      position:fixed;bottom:32px;left:50%;transform:translateX(-50%);
+      background:linear-gradient(135deg,var(--deep-rose),#6A3050);
+      color:white;padding:14px 24px;border-radius:16px;
+      font-size:0.85rem;line-height:1.6;text-align:center;
+      box-shadow:0 8px 32px rgba(139,69,96,0.35);
+      z-index:9999;max-width:320px;width:90%;
+      animation:fadeInUp 0.3s ease;
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<div style="font-size:1.1rem;margin-bottom:6px;">${type === 'analyze' ? '🔍' : '💔'}</div>${msg.replace('\n','<br>')}<br><button onclick="openModal('modal-plans')" style="margin-top:10px;background:white;color:var(--deep-rose);border:none;border-radius:10px;padding:6px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:'Noto Sans TC',sans-serif;">升級 Premium ✦</button>`;
+  toast.style.display = 'block';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
+function updateQuotaDisplay() {
+  if (currentPlan === 'premium') return;
+  const analyzeLeft = BASIC_ANALYZE_LIMIT - basicAnalyzeUsed;
+  const favLeft = BASIC_FAV_LIMIT - basicFavUsed;
+  const quota = document.querySelector('.member-quota');
+  if (!quota) return;
+  quota.innerHTML =
+    `今日 AI 分析：<span style="color:${analyzeLeft === 0 ? '#C05060' : 'inherit'}">${analyzeLeft} 次</span> ｜ 色號收藏：<span style="color:${favLeft === 0 ? '#C05060' : 'inherit'}">${favLeft} 次</span>`;
+}
+
+function switchPlan(plan) {
+  currentPlan = plan;
+  const isPremium = plan === 'premium';
+
+  // ── Plan card UI ──
+  document.getElementById('premium-recommended').style.display = isPremium ? '' : 'none';
+  document.getElementById('premium-btn').style.display        = isPremium ? '' : 'none';
+  document.getElementById('premium-select-btn').style.display = isPremium ? 'none' : '';
+  document.getElementById('basic-btn').style.display          = isPremium ? 'none' : '';
+  document.getElementById('basic-select-btn').style.display   = isPremium ? '' : 'none';
+
+  // ── Member badge ──
+  document.querySelector('.member-crown').textContent  = isPremium ? '👑' : '🌸';
+  document.querySelector('.member-plan').textContent   = isPremium ? 'PREMIUM 付費會員' : 'BASIC 免費會員';
+  document.querySelector('.member-quota').innerHTML    = isPremium
+    ? '今日 AI 分析：<span>無限次</span> ｜ 色號收藏：<span>無限制</span>'
+    : `今日 AI 分析：<span>${BASIC_ANALYZE_LIMIT - basicAnalyzeUsed} 次</span> ｜ 色號收藏：<span>${BASIC_FAV_LIMIT - basicFavUsed} 次</span>`;
+
+  // ── Reset analyze btn when switching plans ──
+  if (isPremium) {
+    // 切回 premium：重置 basic 次數，恢復所有功能
+    basicAnalyzeUsed = 0;
+    basicFavUsed = 0;
+    if (uploadedFile) analyzeBtn.disabled = false;
+    analyzeBtn.innerHTML = '<span>✦</span> 開始分析';
+    analyzeBtn.title = '';
+  } else {
+    // 切到 basic：若次數已用完則鎖定
+    if (basicAnalyzeUsed >= BASIC_ANALYZE_LIMIT) {
+      analyzeBtn.disabled = true;
+      analyzeBtn.innerHTML = '<span>✦</span> 今日次數已用完';
+    }
+  }
+
+  // ── Nav button ──
+  const navBtn = document.querySelector('.nav-sidebar-btn');
+  navBtn.innerHTML = isPremium ? '👑 Premium 會員' : '🌸 Basic 會員';
+
+  // ── Premium section visibility ──
+  document.getElementById('sidebar-premium-section').style.display = isPremium ? '' : 'none';
+  document.getElementById('sidebar-premium-divider').style.display = isPremium ? '' : 'none';
+
+  // ── Sidebar upgrade block ──
+  const upgradeBox = document.querySelector('.sidebar-upgrade');
+  upgradeBox.innerHTML = isPremium
+    ? `<h4>✨ 目前方案：Premium</h4>
+       <p>享有個人化 AI 推薦、無限收藏、品牌獨家優惠與更多進階功能。</p>
+       <div style="display:flex;align-items:baseline;gap:4px;">
+         <div class="price">NT$99<span>／月</span></div>
+         <div style="font-size:0.72rem;color:var(--rose);margin-left:8px;">訂閱中 ✓</div>
+       </div>`
+    : `<h4>🌸 目前方案：Basic 免費</h4>
+       <p>升級 Premium 即可解鎖個人化 AI 推薦、無限收藏與品牌獨家優惠。</p>
+       <button onclick="openModal('modal-plans')" style="
+         width:100%;padding:10px;border-radius:12px;border:none;cursor:pointer;
+         background:linear-gradient(135deg,var(--rose),var(--deep-rose));
+         color:white;font-size:0.85rem;font-weight:600;font-family:'Noto Sans TC',sans-serif;
+       ">✦ 升級為 Premium NT$99／月</button>`;
+
+  // 只有在 modal 已開啟時才關閉（避免初始化時出錯）
+  const plansModal = document.getElementById('modal-plans');
+  if (plansModal && plansModal.classList.contains('show')) {
+    plansModal.classList.remove('show');
+    openSidebar();
+  }
+}
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+function openModal(id) {
+  if (id === 'modal-favorites') renderFavorites();
+  closeSidebar();
+  document.getElementById(id).classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+  openSidebar();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const openModal = document.querySelector('.modal-panel.show');
+    if (openModal) {
+      openModal.classList.remove('show');
+      openSidebar();
+    } else {
+      closeSidebar();
+    }
+  }
+});
+
+/* ═══════════════════════════════════════════
+   FAVORITES
+═══════════════════════════════════════════ */
+const favorites = new Set(); // stores product ids
+
+function toggleFavorite(id) {
+  if (favorites.has(id)) {
+    // 移除收藏（不消耗次數，但 basic 已用次數不退還）
+    favorites.delete(id);
+  } else {
+    // Basic 收藏次數限制
+    if (currentPlan === 'basic' && basicFavUsed >= BASIC_FAV_LIMIT) {
+      showQuotaAlert('fav');
+      return;
+    }
+    favorites.add(id);
+    if (currentPlan === 'basic') {
+      basicFavUsed++;
+      updateQuotaDisplay();
+    }
+  }
+  // update heart button without re-rendering all cards
+  const btn = document.getElementById('fav-btn-' + id);
+  if (btn) {
+    btn.textContent = favorites.has(id) ? '❤️' : '🤍';
+    btn.style.transform = 'scale(1.35)';
+    setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
+  }
+  // update badge count in sidebar nav
+  updateFavBadge();
+}
+
+function updateFavBadge() {
+  const badge = document.querySelector('#sidebar-premium-section .sidebar-nav-badge[data-fav]');
+  if (badge) badge.textContent = favorites.size;
+}
+
+function renderFavorites() {
+  const grid = document.getElementById('favorites-grid');
+  const subtitle = document.getElementById('fav-subtitle');
+  const empty = document.getElementById('fav-empty');
+
+  if (favorites.size === 0) {
+    grid.innerHTML = '';
+    subtitle.textContent = '尚未收藏任何色號';
+    empty.style.display = 'block';
+    return;
+  }
+
+  empty.style.display = 'none';
+  subtitle.textContent = `已收藏 ${favorites.size} 款色號`;
+
+  const favProducts = PRODUCTS.filter(p => favorites.has(p.id));
+  grid.innerHTML = favProducts.map(p => `
+    <div class="fav-card" id="fav-card-${p.id}">
+      <div class="fav-swatch" style="background:${p.swatch};"></div>
+      <div class="fav-brand">${p.brand} ${p.flag}</div>
+      <div class="fav-name">${p.name}</div>
+      <button class="fav-remove" onclick="removeFavorite(${p.id})">✕ 移除</button>
+    </div>
+  `).join('');
+}
+
+function removeFavorite(id) {
+  favorites.delete(id);
+  // sync heart on main card if visible
+  const btn = document.getElementById('fav-btn-' + id);
+  if (btn) btn.textContent = '🤍';
+  updateFavBadge();
+  renderFavorites();
+}
+
+/* ═══════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════ */
+const PRODUCTS = [
+  // 韓國
+  {id:1, country:'韓國', flag:'🇰🇷', brand:'Rom&nd', series:'Blur Fudge Tint', name:'#08 Mellow Brick', type:'唇泥', finish:'霧面', price:'開架', swatch:'#B37070', colorFamily:'玫瑰豆沙', skinTone:'冷白肌、自然膚', occasion:'日常、韓系', reason:'奶茶玫瑰感十足，霧面質地顯唇薄，適合日系韓系妝容', matchDetail:'色調與你的唇色冷調特徵吻合，飽和度接近', match:91, url:'https://shopee.tw/romandofficialtw?entryPoint=ShopBySearch&searchKeyword=romand'},
+  {id:2, country:'韓國', flag:'🇰🇷', brand:'3CE', series:'Velvet Lip Tint', name:'#In The Fig', type:'唇釉／唇露', finish:'絲絨', price:'開架', swatch:'#9B6070', colorFamily:'乾燥玫瑰', skinTone:'冷調肌、黃肌', occasion:'約會、溫柔', reason:'無花果玫瑰調，絲絨質地介於霧面與水光之間', matchDetail:'深淺與彩度高度匹配', match:87, url:'https://shopee.tw/3ce_official_tw?entryPoint=ShopBySearch&searchKeyword=3ce'},
+  {id:3, country:'韓國', flag:'🇰🇷', brand:'Peripera', series:'Ink Velvet', name:'#21 Heart Bomb', type:'唇釉／唇露', finish:'霧面', price:'開架', swatch:'#C05060', colorFamily:'莓果', skinTone:'白肌、冷調肌', occasion:'日常、氣場', reason:'高飽和莓果紅，顯唇色效果極佳，不挑膚色', matchDetail:'飽和度和暖調程度接近，莓果系推薦', match:82, url:'https://shopee.tw/peripera_tw?entryPoint=ShopBySearch&searchKeyword=peripera'},
+  // 日本
+  {id:4, country:'日本', flag:'🇯🇵', brand:'Canmake', series:'Stay-On Balm Rouge', name:'#T04 Tea Party Pink', type:'口紅', finish:'水光', price:'開架', swatch:'#C9849A', colorFamily:'奶茶裸色', skinTone:'黃肌、暖調', occasion:'日常、溫柔', reason:'裸粉調，水光質地，光澤感十足適合無辜感妝容', matchDetail:'裸粉調完美貼近分析結果', match:85, url:'https://shopee.tw/bathcosey1974?entryPoint=ShopBySearch&searchKeyword=canmake'},
+  {id:5, country:'日本', flag:'🇯🇵', brand:'KATE', series:'Rouge Expert Click Stick', name:'#BR-3 Dry Rose', type:'口紅', finish:'霧面', price:'開架', swatch:'#A06070', colorFamily:'乾燥玫瑰', skinTone:'自然膚、暖調', occasion:'日常、正式', reason:'經典乾燥玫瑰色，平價入門款，顯色度高', matchDetail:'色溫與深淺接近分析主色', match:80, url:''},
+  {id:6, country:'日本', flag:'🇯🇵', brand:'Shiseido', series:'Technosatin Gel Lipstick', name:'#415 Short Circuit', type:'口紅', finish:'亮面', price:'中價', swatch:'#B07888', colorFamily:'玫瑰豆沙', skinTone:'中等膚色', occasion:'正式、氣場', reason:'資生堂中階款，緞面光澤讓唇形更立體', matchDetail:'色號冷暖調吻合', match:76, url:'https://www.global-shiseido.com.tw/online_offering/'},
+  // 美國
+  {id:7, country:'美國', flag:'🇺🇸', brand:'MAC', series:'Retro Matte', name:'#Velvet Teddy', type:'口紅', finish:'霧面', price:'中價', swatch:'#BE9180', colorFamily:'奶茶裸色', skinTone:'全膚色適合', occasion:'日常、約會', reason:'全球最暢銷裸色之一，霧面質地，奶茶棕裸色', matchDetail:'裸棕調高度吻合分析主色', match:89, url:'https://www.maccosmetics.com/product/13854/310/products/makeup/lips/lipstick/matte-lipstick'},
+  {id:8, country:'美國', flag:'🇺🇸', brand:'Maybelline', series:'SuperStay Matte Ink', name:'#Seductress', type:'唇釉／唇露', finish:'霧面', price:'開架', swatch:'#A05060', colorFamily:'莓果', skinTone:'黃肌、自然膚', occasion:'日常、氣場', reason:'平價高效霧面唇釉，持久度極佳，莓果粉調', matchDetail:'妝感與飽和度吻合', match:79, url:'https://www.maybelline.com.tw'},
+  {id:9, country:'美國', flag:'🇺🇸', brand:'NYX', series:'Butter Gloss', name:'#Vanilla Cream Pie', type:'唇蜜', finish:'水光', price:'開架', swatch:'#D4A090', colorFamily:'奶茶裸色', skinTone:'白肌、冷調', occasion:'日常、溫柔', reason:'奶油質地唇蜜，水潤感強，裸粉色顯唇薄', matchDetail:'飽和度低，與裸色推薦匹配', match:73, url:''},
+  {id:10, country:'美國', flag:'🇺🇸', brand:'Fenty Beauty', series:'Gloss Bomb Universal Lip Luminizer', name:'#Fenty Glow', type:'唇蜜', finish:'亮面', price:'中價', swatch:'#C89080', colorFamily:'奶茶裸色', skinTone:'全膚色', occasion:'日常、約會', reason:'蕾哈娜品牌，全膚色友善設計，光澤感超飽滿', matchDetail:'亮面質地與分析妝感吻合', match:77, url:'https://fentybeauty.com/'},
+  // 法國
+  {id:11, country:'法國', flag:'🇫🇷', brand:'Dior', series:'Rouge Dior', name:'#458 Paris', type:'口紅', finish:'絲絨', price:'專櫃', swatch:'#C06080', colorFamily:'玫瑰豆沙', skinTone:'冷調、白肌', occasion:'正式、約會', reason:'Dior 經典款，絲絨質地優雅，法式玫瑰感', matchDetail:'玫瑰調完美匹配，絲絨妝感一致', match:93, url:'https://www.dior.com/zh_tw/beauty/gift-sets/dlp-all-giftsets.html#彩妝'},
+  {id:12, country:'法國', flag:'🇫🇷', brand:'YSL', series:'Rouge Pur Couture', name:'#01 Le Rouge', type:'口紅', finish:'亮面', price:'專櫃', swatch:'#B83050', colorFamily:'正紅', skinTone:'全膚色', occasion:'正式、氣場', reason:'YSL 標誌性正紅，亮面質地，最具氣場的選擇', matchDetail:'飽和度高，適合高飽和分析結果', match:70, url:'https://www.yslbeauty.com.tw/ec_beauty_event.html'},
+  {id:13, country:'法國', flag:'🇫🇷', brand:'Chanel', series:'Rouge Allure Ink', name:'#154 Expérimenté', type:'唇釉／唇露', finish:'霧面', price:'專櫃', swatch:'#9A5060', colorFamily:'乾燥玫瑰', skinTone:'黃肌、自然膚', occasion:'正式、溫柔', reason:'Chanel 霧面唇露，乾燥玫瑰棕調，成熟精緻', matchDetail:'色調偏冷且深，符合分析特徵', match:84, url:'https://www.chanel.com/tw/makeup/'},
+  // 台灣／中國
+  {id:14, country:'台灣／中國', flag:'🇹🇼', brand:'heme', series:'持色保濕唇膏', name:'#15 玫瑰豆沙', type:'口紅', finish:'水光', price:'開架', swatch:'#B08090', colorFamily:'玫瑰豆沙', skinTone:'黃肌、暖調', occasion:'日常、溫柔', reason:'台灣平價首選，玫瑰豆沙調，水光質地保濕好推', matchDetail:'本土品牌，色系完美對應主色', match:88, url:'https://www.hemecosmetics.com.tw'},
+  {id:15, country:'台灣／中國', flag:'🇹🇼', brand:'1028', series:'戀色唇釉', name:'#BR504 拿鐵午茶', type:'唇釉／唇露', finish:'水光', price:'開架', swatch:'#C0967A', colorFamily:'橘棕', skinTone:'黃肌', occasion:'日常、韓系', reason:'台灣學生族群最愛，拿鐵棕調，親膚顯白', matchDetail:'橘棕暖調吻合', match:81, url:'https://www.1028loveu.com.tw'},
+  {id:16, country:'台灣／中國', flag:'🇹🇼', brand:'INTO YOU', series:'水光鏡面唇釉', name:'#M08 霧玫瑰', type:'唇釉／唇露', finish:'霧面', price:'開架', swatch:'#A87080', colorFamily:'乾燥玫瑰', skinTone:'中等膚色', occasion:'日常、韓系', reason:'中國平價品牌，韓系感強烈，霧面持色', matchDetail:'飽和度與色溫接近', match:83, url:'https://shopee.tw/intoyoucosmetic?entryPoint=ShopBySearch&searchKeyword=into%20you'},
+
+];
+
+/* ═══════════════════════════════════════════
+   ANALYSIS TEMPLATES
+═══════════════════════════════════════════ */
+const ANALYSIS_SETS = [
+  { mainColor:'玫瑰豆沙', hex:'#B07880', tone:'冷調', depth:'中等', saturation:'中飽和', finish:'霧面', styles:['日常','韓系','溫柔','約會'], families:['玫瑰豆沙','乾燥玫瑰'] },
+  { mainColor:'奶茶裸色', hex:'#C4A080', tone:'暖調', depth:'淺色', saturation:'低飽和', finish:'水光', styles:['日常','溫柔','約會'], families:['奶茶裸色','橘棕'] },
+  { mainColor:'莓果', hex:'#A05068', tone:'冷調', depth:'深色', saturation:'高飽和', finish:'絲絨', styles:['氣場','正式','約會','韓系'], families:['莓果','正紅','乾燥玫瑰'] },
+  { mainColor:'橘棕', hex:'#C07050', tone:'暖調', depth:'中等', saturation:'中飽和', finish:'水光', styles:['日常','韓系','溫柔'], families:['橘棕','奶茶裸色'] },
+  { mainColor:'乾燥玫瑰', hex:'#9A6070', tone:'中性', depth:'中等', saturation:'中飽和', finish:'霧面', styles:['日常','溫柔','正式'], families:['乾燥玫瑰','玫瑰豆沙'] },
+  { mainColor:'正紅', hex:'#C03040', tone:'暖調', depth:'深色', saturation:'高飽和', finish:'亮面', styles:['氣場','正式','約會'], families:['正紅','莓果'] },
+];
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let currentAnalysis = null;
+let filteredProducts = [];
+let expandedCards = new Set();
+
+/* ═══════════════════════════════════════════
+   UPLOAD
+═══════════════════════════════════════════ */
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const previewImg = document.getElementById('previewImg');
+const fileNameEl = document.getElementById('fileName');
+let uploadedFile = null;
+
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) handleFile(file);
+});
+
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) handleFile(file);
+});
+
+function handleFile(file) {
+  uploadedFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    previewImg.src = ev.target.result;
+    fileNameEl.textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+  uploadZone.classList.add('uploaded');
+
+  // Premium 永遠可分析；Basic 只有次數未用完時才啟用
+  const outOfQuota = currentPlan === 'basic' && basicAnalyzeUsed >= BASIC_ANALYZE_LIMIT;
+  if (!outOfQuota) {
+    analyzeBtn.disabled = false;
+    analyzeBtn.innerHTML = '<span>✦</span> 開始分析';
+    analyzeBtn.title = '';
+  }
+  uploadZone.style.borderColor = 'var(--rose)';
+
+  // 上傳後讓分析按鈕脈動提示使用者點擊
+  analyzeBtn.style.animation = 'none';
+  setTimeout(() => {
+    analyzeBtn.style.animation = 'pulse-btn 0.6s ease 2';
+  }, 100);
+}
+
+/* ═══════════════════════════════════════════
+   ANALYZE
+═══════════════════════════════════════════ */
+analyzeBtn.addEventListener('click', startAnalysis);
+
+function startAnalysis() {
+  // Basic 會員次數限制檢查
+  if (currentPlan === 'basic' && basicAnalyzeUsed >= BASIC_ANALYZE_LIMIT) {
+    showQuotaAlert('analyze');
+    return;
+  }
+
+  // 分析中先禁用按鈕避免重複點擊
+  analyzeBtn.disabled = true;
+  analyzeBtn.innerHTML = '<span>✦</span> 分析中…';
+
+  // Basic 扣除使用次數
+  if (currentPlan === 'basic') {
+    basicAnalyzeUsed++;
+    updateQuotaDisplay();
+  }
+
+  document.getElementById('analysis-section').classList.add('visible');
+  document.getElementById('analysis-section').style.display = 'block';
+  document.getElementById('analyzingOverlay').style.display = 'flex';
+  document.getElementById('resultPanel').style.display = 'none';
+  document.getElementById('recommendations-section').style.display = 'none';
+  document.getElementById('disclaimer-wrap').style.display = 'none';
+
+  setTimeout(() => { document.getElementById('analyzeStatus').textContent = '萃取主色調'; }, 800);
+  setTimeout(() => { document.getElementById('analyzeStatus').textContent = '分析冷暖特徵'; }, 1800);
+  setTimeout(() => { document.getElementById('analyzeStatus').textContent = '比對彩度與妝感'; }, 2800);
+  setTimeout(() => { document.getElementById('analyzeStatus').textContent = '搜尋相似色號資料庫'; }, 3600);
+  setTimeout(completeAnalysis, 4600);
+
+  document.getElementById('analysis-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function completeAnalysis() {
+  currentAnalysis = ANALYSIS_SETS[Math.floor(Math.random() * ANALYSIS_SETS.length)];
+
+  document.getElementById('analyzingOverlay').style.display = 'none';
+  document.getElementById('resultPanel').style.display = 'block';
+
+  document.getElementById('mainSwatch').style.background = currentAnalysis.hex;
+  document.getElementById('mainColorName').textContent = currentAnalysis.mainColor;
+
+  const gridData = [
+    { label: '冷暖調', value: currentAnalysis.tone },
+    { label: '深淺', value: currentAnalysis.depth },
+    { label: '彩度', value: currentAnalysis.saturation },
+    { label: '妝感', value: currentAnalysis.finish },
+  ];
+  document.getElementById('resultGrid').innerHTML = gridData.map(d => `
+    <div class="result-item">
+      <div class="result-item-label">${d.label}</div>
+      <div class="result-item-value">${d.value}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('styleTags').innerHTML = currentAnalysis.styles.map((s, i) => {
+    const cls = i % 2 === 0 ? 'tag-rose' : 'tag-nude';
+    return `<span class="tag ${cls}">${s}</span>`;
+  }).join('');
+
+  // Show recommendations
+  document.getElementById('recommendations-section').style.display = 'block';
+  document.getElementById('disclaimer-wrap').style.display = 'block';
+
+  filteredProducts = rankProducts(currentAnalysis);
+  renderCards(filteredProducts);
+  initFilters();
+
+  setTimeout(() => {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+  }, 200);
+
+  const basicExhausted = currentPlan === 'basic' && basicAnalyzeUsed >= BASIC_ANALYZE_LIMIT;
+  if (basicExhausted) {
+    analyzeBtn.disabled = true;
+    analyzeBtn.innerHTML = '<span>✦</span> 今日次數已用完';
+    analyzeBtn.title = '升級 Premium 可無限使用';
+  } else {
+    analyzeBtn.disabled = false;
+    analyzeBtn.innerHTML = '<span>✦</span> 開始分析';
+    analyzeBtn.title = '';
+  }
+  document.getElementById('recommendations-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function rankProducts(analysis) {
+  return PRODUCTS
+    .map(p => {
+      let score = p.match;
+      if (analysis.families.includes(p.colorFamily)) score += 5;
+      if (analysis.finish === p.finish) score += 3;
+      return { ...p, finalScore: Math.min(score, 99) };
+    })
+    .sort((a, b) => b.finalScore - a.finalScore);
+}
+
+/* ═══════════════════════════════════════════
+   FILTERS
+═══════════════════════════════════════════ */
+function initFilters() {
+  const brands = [...new Set(PRODUCTS.map(p => p.brand))].sort();
+  const brandSel = document.getElementById('f-brand');
+  brandSel.innerHTML = '<option value="">全部</option>' + brands.map(b => `<option>${b}</option>`).join('');
+
+  ['f-country','f-brand','f-type','f-finish','f-price'].forEach(id => {
+    document.getElementById(id).addEventListener('change', applyFilters);
+  });
+  document.getElementById('resetFilter').addEventListener('click', resetFilters);
+}
+
+function getFilters() {
+  return {
+    country: document.getElementById('f-country').value,
+    brand: document.getElementById('f-brand').value,
+    type: document.getElementById('f-type').value,
+    finish: document.getElementById('f-finish').value,
+    price: document.getElementById('f-price').value,
+  };
+}
+
+function applyFilters() {
+  const f = getFilters();
+  const base = currentAnalysis ? rankProducts(currentAnalysis) : PRODUCTS;
+  filteredProducts = base.filter(p =>
+    (!f.country || p.country === f.country) &&
+    (!f.brand || p.brand === f.brand) &&
+    (!f.type || p.type === f.type) &&
+    (!f.finish || p.finish === f.finish) &&
+    (!f.price || p.price === f.price)
+  );
+  expandedCards.clear();
+  renderCards(filteredProducts);
+}
+
+function resetFilters() {
+  ['f-country','f-brand','f-type','f-finish','f-price'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  applyFilters();
+}
+
+/* ═══════════════════════════════════════════
+   RENDER CARDS
+═══════════════════════════════════════════ */
+function renderCards(products) {
+  const grid = document.getElementById('cardsGrid');
+  const count = document.getElementById('resultsCount');
+  count.textContent = `共找到 ${products.length} 款相似色號`;
+
+  if (products.length === 0) {
+    grid.innerHTML = `<div class="no-results"><div class="no-results-icon">🔍</div><div>沒有符合條件的色號，試試調整篩選條件</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = products.map(p => `
+    <div class="product-card" data-id="${p.id}">
+      <div class="card-color-bar" style="background:linear-gradient(90deg, ${p.swatch}, ${adjustHex(p.swatch, 20)})"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div>
+            <div class="card-brand-row">
+              <span class="card-flag">${p.flag}</span>
+              <span class="card-brand">${p.brand}</span>
+            </div>
+            <div class="card-name">${p.name}</div>
+            <div style="font-size:0.78rem;color:var(--text-light);margin-top:2px;">${p.series}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div class="card-swatch" style="background:${p.swatch}"></div>
+            <button onclick="toggleFavorite(${p.id})" id="fav-btn-${p.id}" style="
+              border:none;background:none;cursor:pointer;font-size:1.3rem;line-height:1;
+              transition:transform 0.2s;padding:2px;
+            " title="收藏此色號">${favorites.has(p.id) ? '❤️' : '🤍'}</button>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="card-tag card-tag-type">${p.type}</span>
+          <span class="card-tag card-tag-feel">${p.finish}</span>
+          <span class="card-tag card-tag-price">${p.price}</span>
+        </div>
+        <div class="card-reason">${p.reason}</div>
+      </div>
+      <div class="card-expanded-body show">
+        <div class="card-detail-grid">
+          <div class="card-detail">
+            <div class="card-detail-label">色系</div>
+            <div class="card-detail-value">${p.colorFamily}</div>
+          </div>
+          <div class="card-detail">
+            <div class="card-detail-label">國家 / 地區</div>
+            <div class="card-detail-value">${p.flag} ${p.country}</div>
+          </div>
+          <div class="card-detail">
+            <div class="card-detail-label">適合膚色</div>
+            <div class="card-detail-value">${p.skinTone}</div>
+          </div>
+          <div class="card-detail">
+            <div class="card-detail-label">適合場合</div>
+            <div class="card-detail-value">${p.occasion}</div>
+          </div>
+        </div>
+
+        ${p.url ? `<a href="${p.url}" target="_blank" rel="noopener noreferrer" style="
+          display:flex;align-items:center;justify-content:center;gap:8px;
+          margin-top:16px;padding:11px 0;border-radius:12px;
+          background:linear-gradient(135deg,var(--rose),var(--deep-rose));
+          color:white;font-size:0.85rem;font-weight:500;letter-spacing:0.05em;
+          text-decoration:none;transition:opacity 0.2s;
+        " onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          🛍 前往官網購買
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 11L11 2M11 2H5M11 2V8" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function adjustHex(hex, amount) {
+  const num = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, (num >> 16) + amount);
+  const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+  const b = Math.min(255, (num & 0xff) + amount);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+/* ═══════════════════════════════════════════
+   SCROLL REVEAL
+═══════════════════════════════════════════ */
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// 預設以 Premium 會員身份開啟
+switchPlan('premium');
+updateFavBadge();
+// 尚未上傳圖片前禁用分析按鈕（premium 也需要先上傳才能分析）
+analyzeBtn.disabled = true;
+</script>
+</body>
+</html>
